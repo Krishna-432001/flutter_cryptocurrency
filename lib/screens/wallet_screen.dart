@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart'; // For local database
+import 'package:path/path.dart'; // For database path
 
 class WalletScreen extends StatefulWidget {
   @override
@@ -6,19 +8,58 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  double _balance = 0.0; // Example balance
-  List<Map<String, String>> _transactions = [
-    {"type": "Deposit", "amount": "100.00", "date": "2024-09-01"},
-    {"type": "Withdraw", "amount": "50.00", "date": "2024-09-02"},
-    // Add more transactions as needed
-  ];
+  double _balance = 0.0;
+  List<Map<String, dynamic>> _transactions = [];
+  Database? _database;
 
-  void _deposit() {
-    // Implement deposit logic
+  @override
+  void initState() {
+    super.initState();
+    _initDatabase();
+    _fetchData();
   }
 
-  void _withdraw() {
-    // Implement withdraw logic
+  Future<void> _initDatabase() async {
+    _database = await openDatabase(
+      join(await getDatabasesPath(), 'wallet_database.db'),
+      onCreate: (db, version) {
+        return db.execute(
+          "CREATE TABLE transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT)",
+        );
+      },
+      version: 1,
+    );
+  }
+
+  Future<void> _fetchData() async {
+    // Fetch balance and transaction history from database
+    final List<Map<String, dynamic>> transactions = await _database!.query('transactions');
+    setState(() {
+      _transactions = transactions;
+      _balance = transactions.fold(0.0, (sum, transaction) {
+        return transaction['type'] == 'Deposit' ? sum + transaction['amount'] : sum - transaction['amount'];
+      });
+    });
+  }
+
+  Future<void> _deposit(double amount) async {
+    // Insert deposit transaction into the database
+    await _database!.insert(
+      'transactions',
+      {'type': 'Deposit', 'amount': amount, 'date': DateTime.now().toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    _fetchData(); // Refresh data
+  }
+
+  Future<void> _withdraw(double amount) async {
+    // Insert withdrawal transaction into the database
+    await _database!.insert(
+      'transactions',
+      {'type': 'Withdraw', 'amount': amount, 'date': DateTime.now().toString()},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+    _fetchData(); // Refresh data
   }
 
   @override
@@ -46,13 +87,14 @@ class _WalletScreenState extends State<WalletScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 ElevatedButton(
-                  onPressed: _deposit,
+                  onPressed: () => _showTransactionDialog(context, 'Deposit'),
                   child: Text("Deposit"),
                 ),
                 ElevatedButton(
-                  onPressed: _withdraw,
+                  onPressed: () => _showTransactionDialog(context, 'Withdraw'),
                   child: Text("Withdraw"),
                 ),
+
               ],
             ),
             SizedBox(height: 16),
@@ -95,4 +137,38 @@ class _WalletScreenState extends State<WalletScreen> {
       ),
     );
   }
+
+  void _showTransactionDialog(BuildContext context, String type) {
+    final _amountController = TextEditingController();
+    showDialog(
+      context: context,  // Ensure this is BuildContext
+      builder: (BuildContext context) => AlertDialog(
+        title: Text("$type Amount"),
+        content: TextField(
+          controller: _amountController,
+          keyboardType: TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: "Amount",
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              final amount = double.tryParse(_amountController.text) ?? 0.0;
+              if (amount > 0) {
+                if (type == 'Deposit') {
+                  _deposit(amount);
+                } else if (type == 'Withdraw') {
+                  _withdraw(amount);
+                }
+                Navigator.of(context).pop();
+              }
+            },
+            child: Text("Submit"),
+          ),
+        ],
+      ),
+    );
+  }
+
 }
