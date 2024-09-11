@@ -1,13 +1,13 @@
 import 'package:cryptocurrency/screens/setting_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/crypto_provider.dart';
 import 'crypto_detail_screen.dart';
 import 'profile_screen.dart';
-
 import 'wallet_screen.dart';
 import 'about_screen.dart';
+import 'login_screen.dart'; // Import your LoginScreen here
 
 class HomeScreen extends StatefulWidget {
   @override
@@ -19,6 +19,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     Provider.of<CryptoProvider>(context, listen: false).fetchCryptoData();
+  }
+
+  Future<void> _logout() async {
+    // Clear authentication tokens or user data
+    // Assuming you are using SharedPreferences for storing user tokens
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('authToken'); // Replace 'authToken' with your token key
+
+    // Navigate to the login screen
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(builder: (context) => LoginScreen()),
+          (Route<dynamic> route) => false, // Remove all previous routes
+    );
   }
 
   @override
@@ -81,9 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               title: Text('Logout'),
-              onTap: () {
-                // Add logout logic here
-              },
+              onTap: _logout,
             ),
           ],
         ),
@@ -104,7 +116,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 subtitle: Text(crypto['symbol'].toUpperCase()),
                 trailing: Text("\$${crypto['current_price'].toStringAsFixed(2)}"),
                 onTap: () {
-                  // Navigate to the detail screen when clicked
                   Navigator.push(
                     context,
                     MaterialPageRoute(
