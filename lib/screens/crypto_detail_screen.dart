@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Use for local storage
 
 class CryptoDetailScreen extends StatefulWidget {
   final Map<String, dynamic> cryptoData;
@@ -12,14 +13,22 @@ class CryptoDetailScreen extends StatefulWidget {
 class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
   double minedAmount = 0.0;
   bool isMining = false;
+  late SharedPreferences prefs;
 
   @override
   void initState() {
     super.initState();
+    _loadMiningData();
     startMining();
   }
 
-  // Simulating mining logic where every second some amount is mined
+  Future<void> _loadMiningData() async {
+    prefs = await SharedPreferences.getInstance();
+    setState(() {
+      minedAmount = prefs.getDouble('${widget.cryptoData['symbol']}_mined') ?? 0.0;
+    });
+  }
+
   void startMining() {
     isMining = true;
     Future.delayed(Duration(seconds: 1), mineCrypto);
@@ -30,6 +39,7 @@ class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
       setState(() {
         minedAmount += 0.01; // Increment mined amount by 0.01 every second
       });
+      prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount);
       Future.delayed(Duration(seconds: 1), mineCrypto); // Keep mining
     }
   }
@@ -37,6 +47,7 @@ class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
   @override
   void dispose() {
     isMining = false; // Stop mining when screen is disposed
+    prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount); // Save data
     super.dispose();
   }
 
@@ -107,10 +118,12 @@ class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
                     onPressed: () {
                       setState(() {
                         isMining = !isMining;
+                        if (isMining) {
+                          startMining();
+                        } else {
+                          prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount); // Save data
+                        }
                       });
-                      if (isMining) {
-                        startMining();
-                      }
                     },
                     child: Text(isMining ? "Stop Mining" : "Start Mining"),
                   ),
