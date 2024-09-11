@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite/sqflite.dart'; // For local database
-import 'package:path/path.dart'; // For database path
+import 'package:shared_preferences/shared_preferences.dart';
 
 class WalletScreen extends StatefulWidget {
   @override
@@ -8,58 +7,46 @@ class WalletScreen extends StatefulWidget {
 }
 
 class _WalletScreenState extends State<WalletScreen> {
-  double _balance = 0.0;
-  List<Map<String, dynamic>> _transactions = [];
-  Database? _database;
+  double _balance = 0.0; // Example balance
+  Map<String, double> _minedCoins = {}; // Map to store mined coins data
 
   @override
   void initState() {
     super.initState();
-    _initDatabase();
-    _fetchData();
+    _setSampleData(); // Optional: Remove if data is already set
+    _loadMinedCoins();
   }
 
-  Future<void> _initDatabase() async {
-    _database = await openDatabase(
-      join(await getDatabasesPath(), 'wallet_database.db'),
-      onCreate: (db, version) {
-        return db.execute(
-          "CREATE TABLE transactions(id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, amount REAL, date TEXT)",
-        );
-      },
-      version: 1,
-    );
+  Future<void> _setSampleData() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('mined_BTC', 0.5); // Example mined BTC
+    await prefs.setDouble('mined_ETH', 1.0); // Example mined ETH
   }
 
-  Future<void> _fetchData() async {
-    // Fetch balance and transaction history from database
-    final List<Map<String, dynamic>> transactions = await _database!.query('transactions');
+  Future<void> _loadMinedCoins() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      _transactions = transactions;
-      _balance = transactions.fold(0.0, (sum, transaction) {
-        return transaction['type'] == 'Deposit' ? sum + transaction['amount'] : sum - transaction['amount'];
-      });
+      _minedCoins = {
+        'BTC': prefs.getDouble('mined_BTC') ?? 0.0,
+        'ETH': prefs.getDouble('mined_ETH') ?? 0.0,
+        // Add other coins as needed
+      };
+      print("Mined Coins: $_minedCoins"); // Debug print
     });
   }
 
-  Future<void> _deposit(double amount) async {
-    // Insert deposit transaction into the database
-    await _database!.insert(
-      'transactions',
-      {'type': 'Deposit', 'amount': amount, 'date': DateTime.now().toString()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    _fetchData(); // Refresh data
+  void _deposit(double amount) {
+    setState(() {
+      _balance += amount;
+    });
   }
 
-  Future<void> _withdraw(double amount) async {
-    // Insert withdrawal transaction into the database
-    await _database!.insert(
-      'transactions',
-      {'type': 'Withdraw', 'amount': amount, 'date': DateTime.now().toString()},
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-    _fetchData(); // Refresh data
+  void _withdraw(double amount) {
+    if (_balance >= amount) {
+      setState(() {
+        _balance -= amount;
+      });
+    }
   }
 
   @override
@@ -87,46 +74,42 @@ class _WalletScreenState extends State<WalletScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 ElevatedButton(
-                  onPressed: () => _showTransactionDialog(context, 'Deposit'),
+                  onPressed: () {
+                    _showTransactionDialog(context, 'Deposit');
+                  },
                   child: Text("Deposit"),
                 ),
                 ElevatedButton(
-                  onPressed: () => _showTransactionDialog(context, 'Withdraw'),
+                  onPressed: () {
+                    _showTransactionDialog(context, 'Withdraw');
+                  },
                   child: Text("Withdraw"),
                 ),
-
               ],
             ),
             SizedBox(height: 16),
-            // Transaction History
+            // Mined Coins Header
             Text(
-              "Transaction History",
+              "Mined Coins",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
+            // Mined Coins List
             Expanded(
               child: ListView.builder(
-                itemCount: _transactions.length,
+                itemCount: _minedCoins.length,
                 itemBuilder: (context, index) {
-                  final transaction = _transactions[index];
+                  final coin = _minedCoins.keys.elementAt(index);
+                  final amount = _minedCoins[coin]!;
                   return ListTile(
                     leading: Icon(
-                      transaction["type"] == "Deposit"
-                          ? Icons.arrow_downward
-                          : Icons.arrow_upward,
-                      color: transaction["type"] == "Deposit"
-                          ? Colors.green
-                          : Colors.red,
+                      Icons.monetization_on,
+                      color: Colors.blue,
                     ),
-                    title: Text(transaction["type"]!),
-                    subtitle: Text(transaction["date"]!),
+                    title: Text(coin),
                     trailing: Text(
-                      "\$${transaction["amount"]!}",
-                      style: TextStyle(
-                        color: transaction["type"] == "Deposit"
-                            ? Colors.green
-                            : Colors.red,
-                      ),
+                      "${amount.toStringAsFixed(4)} coins",
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
                   );
                 },
@@ -141,7 +124,7 @@ class _WalletScreenState extends State<WalletScreen> {
   void _showTransactionDialog(BuildContext context, String type) {
     final _amountController = TextEditingController();
     showDialog(
-      context: context,  // Ensure this is BuildContext
+      context: context,
       builder: (BuildContext context) => AlertDialog(
         title: Text("$type Amount"),
         content: TextField(
@@ -170,5 +153,4 @@ class _WalletScreenState extends State<WalletScreen> {
       ),
     );
   }
-
 }
