@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Use for local storage
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CryptoDetailScreen extends StatefulWidget {
   final Map<String, dynamic> cryptoData;
@@ -13,20 +13,24 @@ class CryptoDetailScreen extends StatefulWidget {
 class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
   double minedAmount = 0.0;
   bool isMining = false;
-  late SharedPreferences prefs;
 
   @override
   void initState() {
     super.initState();
-    _loadMiningData();
+    _loadMinedAmount();
     startMining();
   }
 
-  Future<void> _loadMiningData() async {
-    prefs = await SharedPreferences.getInstance();
+  Future<void> _loadMinedAmount() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      minedAmount = prefs.getDouble('${widget.cryptoData['symbol']}_mined') ?? 0.0;
+      minedAmount = prefs.getDouble('mined_${widget.cryptoData['symbol']}') ?? 0.0;
     });
+  }
+
+  Future<void> _saveMinedAmount() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('mined_${widget.cryptoData['symbol']}', minedAmount);
   }
 
   void startMining() {
@@ -39,15 +43,14 @@ class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
       setState(() {
         minedAmount += 0.01; // Increment mined amount by 0.01 every second
       });
-      prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount);
-      Future.delayed(Duration(seconds: 1), mineCrypto); // Keep mining
+      _saveMinedAmount(); // Save updated mined amount
+      Future.delayed(Duration(seconds: 1), mineCrypto); // Continue mining
     }
   }
 
   @override
   void dispose() {
     isMining = false; // Stop mining when screen is disposed
-    prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount); // Save data
     super.dispose();
   }
 
@@ -121,7 +124,7 @@ class _CryptoDetailScreenState extends State<CryptoDetailScreen> {
                         if (isMining) {
                           startMining();
                         } else {
-                          prefs.setDouble('${widget.cryptoData['symbol']}_mined', minedAmount); // Save data
+                          _saveMinedAmount(); // Save mined amount when stopped
                         }
                       });
                     },
